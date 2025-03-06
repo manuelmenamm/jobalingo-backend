@@ -2,14 +2,16 @@ import os
 import requests
 import random
 import re
+import urllib.parse  # Add this import
 import numpy as np
 from typing import List, Dict, Tuple
 from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-
 load_dotenv()
+
+# Rest of the IndustryClassifier class remains the same
 
 class IndustryClassifier:
     """Industry classifier using cosine similarity with Spanish templates"""
@@ -216,6 +218,7 @@ class IndustryClassifier:
         return industry, similarity
 
 
+
 class AdzunaJobParser:
     def __init__(self):
         self.base_url = 'http://api.adzuna.com/v1/api/jobs'
@@ -245,8 +248,47 @@ class AdzunaJobParser:
         
         # Initialize the industry classifier
         self.industry_classifier = IndustryClassifier()
-
-    # Rest of the code remains the same...
+        
+        # Common Spanish companies and their logo URLs
+        self.company_logos = {
+            'telefonica': 'https://logo.clearbit.com/telefonica.com',
+            'bbva': 'https://logo.clearbit.com/bbva.com',
+            'santander': 'https://logo.clearbit.com/santander.com',
+            'iberdrola': 'https://logo.clearbit.com/iberdrola.com',
+            'inditex': 'https://logo.clearbit.com/inditex.com',
+            'repsol': 'https://logo.clearbit.com/repsol.com',
+            'caixabank': 'https://logo.clearbit.com/caixabank.com',
+            'mapfre': 'https://logo.clearbit.com/mapfre.com',
+            'endesa': 'https://logo.clearbit.com/endesa.com',
+            'amadeus': 'https://logo.clearbit.com/amadeus.com',
+            'bankinter': 'https://logo.clearbit.com/bankinter.com',
+            'ferrovial': 'https://logo.clearbit.com/ferrovial.com',
+            'sabadell': 'https://logo.clearbit.com/bancsabadell.com',
+            'acciona': 'https://logo.clearbit.com/acciona.com',
+            'aena': 'https://logo.clearbit.com/aena.es',
+            'mercadona': 'https://logo.clearbit.com/mercadona.es',
+            'indra': 'https://logo.clearbit.com/indracompany.com',
+            'naturgy': 'https://logo.clearbit.com/naturgy.com',
+            'vodafone': 'https://logo.clearbit.com/vodafone.es',
+            'google': 'https://logo.clearbit.com/google.com',
+            'microsoft': 'https://logo.clearbit.com/microsoft.com',
+            'amazon': 'https://logo.clearbit.com/amazon.com',
+            'apple': 'https://logo.clearbit.com/apple.com',
+            'facebook': 'https://logo.clearbit.com/facebook.com',
+            'meta': 'https://logo.clearbit.com/meta.com',
+            'twitter': 'https://logo.clearbit.com/twitter.com',
+            'linkedin': 'https://logo.clearbit.com/linkedin.com',
+            'deloitte': 'https://logo.clearbit.com/deloitte.com',
+            'pwc': 'https://logo.clearbit.com/pwc.com',
+            'kpmg': 'https://logo.clearbit.com/kpmg.com',
+            'ey': 'https://logo.clearbit.com/ey.com',
+            'accenture': 'https://logo.clearbit.com/accenture.com',
+            'ibm': 'https://logo.clearbit.com/ibm.com',
+            'oracle': 'https://logo.clearbit.com/oracle.com',
+            'sap': 'https://logo.clearbit.com/sap.com',
+            'salesforce': 'https://logo.clearbit.com/salesforce.com',
+            'capgemini': 'https://logo.clearbit.com/capgemini.com'
+        }
 
     def fetch_jobs(self, params: Dict = None) -> List[Dict]:
         default_params = {
@@ -297,10 +339,15 @@ class AdzunaJobParser:
                 # Map Adzuna category to our industry format
                 industry = self._determine_industry(job, adzuna_category)
                 
+                # Get company name and logo
+                company_name = job.get('company', {}).get('display_name', '')
+                company_logo = self._get_company_logo(company_name)
+                
                 transformed_job = {
                     'id': str(job.get('id', '')),
                     'title': job.get('title', ''),
-                    'company': job.get('company', {}).get('display_name', ''),
+                    'company': company_name,
+                    'companyLogo': company_logo,
                     'location': self._format_location(job),
                     'description': job.get('description', ''),
                     'salary': self._format_salary(job),
@@ -347,7 +394,68 @@ class AdzunaJobParser:
             return []
         except Exception as e:
             print(f"Unexpected error: {e}")
+            # Print the actual error for debugging
+            import traceback
+            traceback.print_exc()
             return []
+
+    def _get_company_logo(self, company_name: str) -> str:
+        """Get company logo URL based on company name"""
+        if not company_name:
+            return self._generate_default_logo("Unknown")
+        
+        try:
+            # Clean and normalize company name
+            clean_name = company_name.lower().strip()
+            
+            # Remove common company suffixes
+            for suffix in [' s.a.', ' s.l.', ' inc.', ' ltd.', ' llc', ' corporation', ' corp.', ' co.', ' group', ' españa', ' spain']:
+                clean_name = clean_name.replace(suffix, '')
+            
+            # Check if we have a predefined logo for this company
+            for company_key, logo_url in self.company_logos.items():
+                if company_key in clean_name:
+                    return logo_url
+            
+            # If no match, use a simplified approach with just the UI Avatars API
+            return self._generate_default_logo(company_name)
+        except Exception as e:
+            # If anything goes wrong, return a simple fallback
+            print(f"Error getting logo for {company_name}: {e}")
+            return "https://ui-avatars.com/api/?name=C&background=random"
+    
+    def _extract_domain(self, company_name: str) -> str:
+        """Extract potential domain name from company name"""
+        # Remove spaces, accents, and special characters
+        domain = company_name.strip().lower()
+        domain = re.sub(r'[^\w\s]', '', domain)
+        domain = re.sub(r'\s+', '', domain)
+        
+        return f"{domain}.com"
+    
+    def _generate_default_logo(self, company_name: str) -> str:
+        """Generate a default logo using UI Avatars API"""
+        try:
+            # Use UI Avatars to generate a logo based on company initials
+            # Get first character of each word
+            words = company_name.split()
+            if not words:
+                return "https://ui-avatars.com/api/?name=C&background=random"
+                
+            initials = "".join(word[0] for word in words if word)
+            # If no initials could be extracted, use "C" for Company
+            if not initials:
+                initials = "C"
+            # Limit to 2 letters
+            initials = initials[:2]
+            
+            encoded_name = urllib.parse.quote(initials)
+            return f"https://ui-avatars.com/api/?name={encoded_name}&background=random&size=128"
+        except Exception as e:
+            print(f"Error generating logo: {e}")
+            return "https://ui-avatars.com/api/?name=C&background=random"
+
+    # Rest of the methods remain the same
 
     def _determine_industry(self, job: Dict, adzuna_category: str) -> str:
         """Determine industry based on Adzuna category with cosine similarity fallback"""
