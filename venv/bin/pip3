@@ -1,4 +1,4 @@
-#!/Users/manuelmena/jobaligo-backend/venv/bin/python3.11
+#!/Users/manuelmena/Desktop/jobalingo-backend/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
